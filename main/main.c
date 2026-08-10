@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include "esp_log.h"
-#include "gamepad_interface.h"
-#include "freertos/FreeRTOS.h"
+#include <stdio.h> //v2 update adds in FSM, triggered by rising edge on R1
+#include "esp_log.h"//it toggles between turning on LEDS only when button held
+#include "gamepad_interface.h"//and the button toggling the LED being on,
+#include "freertos/FreeRTOS.h"//Logic is implemented in my_platform_on_controller_data() callback, in gamepad_interface.c
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
@@ -31,6 +31,6 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
     //Initialize GPIOs for LED control
     gpio_init();
-    //Initialise the gamepad interface, and register the callbacks
+    //Initialise the gamepad interface, and register the callbacks, and passes control to the BT stack processing loop, which never returns
     gamepad_interface_init();
 }

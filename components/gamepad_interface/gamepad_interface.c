@@ -136,40 +136,71 @@ static const uni_property_t* my_platform_get_property(uni_property_idx_t idx){
 }
 
 static void my_platform_on_controller_data(uni_hid_device_t* dev, uni_controller_t* ctl){
-    static uint16_t prev_buttons = 0; //remember last state of buttons only, to avoid flooding the log with repeated button states
+    //Remember states (FSM and LED memory)
+    static uint16_t prev_button_state = 0;
+    static bool is_toggle_mode = false; //toggle mode state, true=toggle mode on, false=toggle mode off, changed by R1
+    static bool cross_state = false;
+    static bool circle_state = false;
+    static bool square_state = false;
+    static bool triangle_state = false;
+    //check if data is valid controller data
     if(ctl->klass == UNI_CONTROLLER_CLASS_GAMEPAD){
-        //get current button mask
-        current_button_state = ctl->gamepad.buttons;
-        //if buttons are same as last time, ignore the packet entirely
-        if(current_button_state == prev_buttons){
+        //ignore analog stick noise
+        if(prev_button_state == current_button_state){
             return;
         }
-        prev_buttons = current_button_state; //update last state of buttons
-        //log the current button state as a bitmask, each bit represents a button on the controller
-        ESP_LOGI(TAG, "EVENT, Interrupt received, Controller State: %0x%04X \n", current_button_state);
-        
-        //Logic to control LEDs based on button state:
-        if(current_button_state & 0x0001){ //X button pressed
-            gpio_set_level(CROSS_LED_GPIO, 1);
-        } else {
+        //==================
+        //FSM MODE SWITCHING LOGIC (R1 button)
+        //==================
+        //check for rising edge on R1 button to toggle between toggle mode and hold mode
+        if((current_button_state & 0x0020) && !(prev_button_state & 0x0020)){
+            is_toggle_mode = !is_toggle_mode; //toggle mode state
+            if(is_toggle_mode){
+                ESP_LOGI(TAG, "Toggle mode ON");
+            } else {
+                ESP_LOGI(TAG, "Toggle mode OFF");
+            }
+            //reset LEDS when switching modes
             gpio_set_level(CROSS_LED_GPIO, 0);
-        }
-        if(current_button_state & 0x0002){ //Circle button pressed
-            gpio_set_level(CIRCLE_LED_GPIO, 1);
-        } else {
             gpio_set_level(CIRCLE_LED_GPIO, 0);
-    }
-        if(current_button_state & 0x0004){ //Square button pressed
-            gpio_set_level(SQUARE_LED_GPIO, 1);
-        } else {
             gpio_set_level(SQUARE_LED_GPIO, 0);
-        }
-        if(current_button_state & 0x0008){ //Triangle button pressed
-            gpio_set_level(TRIANGLE_LED_GPIO, 1);
-        } else {
             gpio_set_level(TRIANGLE_LED_GPIO, 0);
+            cross_state = false;
+            circle_state = false;
+            square_state = false;
+            triangle_state = false;
         }
-    }
+        //==================
+        //LED CONTROL LOGIC (State Machine)
+        //==================
+        if(is_toggle_mode){
+            //MODE 1: Toggle mode, button press toggles LED state
+            //Use Edge detection so it only toggles on button press, not when held down
+            if((current_button_state & 0x0001) && !(prev_button_state & 0x0001)){ //X button
+                cross_state = !cross_state; //flip cross bit
+                gpio_set_level(CROSS_LED_GPIO, cross_state);
+        }
+        if((current_button_state & 0x0002) && !(prev_button_state & 0x0002)){ //Circle button
+                circle_state = !circle_state; //flip circle bit
+                gpio_set_level(CIRCLE_LED_GPIO, circle_state);
+        }
+        if((current_button_state & 0x0004) && !(prev_button_state & 0x0004)){ //Square button
+                square_state = !square_state; //flip square bit
+                gpio_set_level(SQUARE_LED_GPIO, square_state);  
+        }
+        if((current_button_state & 0x0008) && !(prev_button_state & 0x0008)){ //Triangle button
+                triangle_state = !triangle_state; //flip triangle bit
+                gpio_set_level(TRIANGLE_LED_GPIO, triangle_state);
+        }
+        } else {
+            //MODE 2: Hold mode, LED is on only when button is held down
+            gpio_set_level(CROSS_LED_GPIO, (current_button_state & 0x0001) ? 1 : 0);
+            gpio_set_level(CIRCLE_LED_GPIO, (current_button_state & 0x0002) ? 1 : 0);
+            gpio_set_level(SQUARE_LED_GPIO, (current_button_state & 0x0004) ? 1 : 0);
+            gpio_set_level(TRIANGLE_LED_GPIO, (current_button_state & 0x0008) ? 1 : 0);
+        } 
+        //Save current button state for next iterations edge detection
+        prev_button_state = current_button_state;
 }
 //Entry point for Bluepad32 to register the platform callbacks, returns a pointer to a populated struct uni_platform
 static struct uni_platform* get_my_platform(void){
