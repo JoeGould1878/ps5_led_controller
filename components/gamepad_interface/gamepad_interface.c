@@ -136,6 +136,7 @@ static const uni_property_t* my_platform_get_property(uni_property_idx_t idx){
 }
 
 static void my_platform_on_controller_data(uni_hid_device_t* dev, uni_controller_t* ctl){
+    
     //Remember states (FSM and LED memory)
     static uint16_t prev_button_state = 0;
     static bool is_toggle_mode = false; //toggle mode state, true=toggle mode on, false=toggle mode off, changed by R1
@@ -145,6 +146,7 @@ static void my_platform_on_controller_data(uni_hid_device_t* dev, uni_controller
     static bool triangle_state = false;
     //check if data is valid controller data
     if(ctl->klass == UNI_CONTROLLER_CLASS_GAMEPAD){
+        current_button_state = ctl->gamepad.buttons;
         //ignore analog stick noise
         if(prev_button_state == current_button_state){
             return;
@@ -179,19 +181,19 @@ static void my_platform_on_controller_data(uni_hid_device_t* dev, uni_controller
             if((current_button_state & 0x0001) && !(prev_button_state & 0x0001)){ //X button
                 cross_state = !cross_state; //flip cross bit
                 gpio_set_level(CROSS_LED_GPIO, cross_state);
-        }
-        if((current_button_state & 0x0002) && !(prev_button_state & 0x0002)){ //Circle button
-                circle_state = !circle_state; //flip circle bit
-                gpio_set_level(CIRCLE_LED_GPIO, circle_state);
-        }
-        if((current_button_state & 0x0004) && !(prev_button_state & 0x0004)){ //Square button
-                square_state = !square_state; //flip square bit
-                gpio_set_level(SQUARE_LED_GPIO, square_state);  
-        }
-        if((current_button_state & 0x0008) && !(prev_button_state & 0x0008)){ //Triangle button
-                triangle_state = !triangle_state; //flip triangle bit
-                gpio_set_level(TRIANGLE_LED_GPIO, triangle_state);
-        }
+            }
+            if((current_button_state & 0x0002) && !(prev_button_state & 0x0002)){ //Circle button
+                    circle_state = !circle_state; //flip circle bit
+                    gpio_set_level(CIRCLE_LED_GPIO, circle_state);
+            }
+            if((current_button_state & 0x0004) && !(prev_button_state & 0x0004)){ //Square button
+                    square_state = !square_state; //flip square bit
+                    gpio_set_level(SQUARE_LED_GPIO, square_state);  
+            }
+            if((current_button_state & 0x0008) && !(prev_button_state & 0x0008)){ //Triangle button
+                    triangle_state = !triangle_state; //flip triangle bit
+                    gpio_set_level(TRIANGLE_LED_GPIO, triangle_state);
+            }
         } else {
             //MODE 2: Hold mode, LED is on only when button is held down
             gpio_set_level(CROSS_LED_GPIO, (current_button_state & 0x0001) ? 1 : 0);
@@ -221,14 +223,6 @@ static struct uni_platform* get_my_platform(void){
 }
 
 //END OF REFERENCED CODE
-/* Static FreeRTOS Task function that calls btstack_run_loop_execute
-because the platform needs to handle Bluetooth events in a separate task 
-and this function never returns, so needs to be task to avoid CPU blocking */
-static void bt_task_runner(void* arg){
-    ARG_UNUSED(arg);
-    ESP_LOGI(TAG, "bt_task_runner() started");
-    btstack_run_loop_execute();
-}
 /*Public API function to initialise the gamepad interface, must be called before any other functions in this module,
  sets up the Bluepad32 platform and starts the BT stack processing loop in a separate task*/
  void gamepad_interface_init(void){
