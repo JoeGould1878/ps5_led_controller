@@ -201,6 +201,7 @@ static void my_platform_on_controller_data(uni_hid_device_t* dev, uni_controller
         } 
         //Save current button state for next iterations edge detection
         prev_button_state = current_button_state;
+    }
 }
 //Entry point for Bluepad32 to register the platform callbacks, returns a pointer to a populated struct uni_platform
 static struct uni_platform* get_my_platform(void){
